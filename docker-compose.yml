@@ -1,0 +1,29 @@
+services:
+  encoder-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: video-encoder
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./videos:/app/videos
+      - ./outputs:/app/outputs
+      - ./chunks:/app/chunks
+      - ./cache:/app/cache
+      - ./logs:/app/logs
+    environment:
+      - PORT=8080
+      - MAX_WORKERS=2
+      - MAX_RETRIES=3
+      - OUTPUTS_DIR=outputs
+      - CHUNKS_DIR=chunks
+      - CACHE_DIR=cache
+      - LOGS_DIR=logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
