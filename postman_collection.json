@@ -1,0 +1,219 @@
+{
+  "info": {
+    "name": "Video Encoder Service v2.0",
+    "description": "Production-ready video transcoding service with HLS multi-quality encoding, deduplication, and disk management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.0.0"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check service health and get system statistics including workers, queue, jobs, and disk usage."
+      },
+      "response": []
+    },
+    {
+      "name": "Create Transcoding Job",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.success && jsonData.data) {",
+              "        pm.environment.set(\"job_id\", jsonData.data.jobId);",
+              "        pm.test(\"Job created successfully\", function () {",
+              "            pm.expect(jsonData.data.status).to.eql(\"QUEUED\");",
+              "        });",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inputPath\": \"videos/sample.mp4\",\n  \"chunkDuration\": 4\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/transcode",
+          "host": ["{{base_url}}"],
+          "path": ["transcode"]
+        },
+        "description": "Submit a video for multi-quality HLS transcoding. Returns job ID for tracking."
+      },
+      "response": []
+    },
+    {
+      "name": "Create Job (2s chunks)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.success && jsonData.data) {",
+              "        pm.environment.set(\"job_id\", jsonData.data.jobId);",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inputPath\": \"videos/sample.mp4\",\n  \"chunkDuration\": 2\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/transcode",
+          "host": ["{{base_url}}"],
+          "path": ["transcode"]
+        },
+        "description": "Create transcoding job with 2-second chunks for low-latency streaming."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Job Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/jobs/{{job_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["jobs", "{{job_id}}"]
+        },
+        "description": "Get detailed job information including status, progress, input/output metadata, and processing time."
+      },
+      "response": []
+    },
+    {
+      "name": "List All Jobs",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/jobs",
+          "host": ["{{base_url}}"],
+          "path": ["jobs"]
+        },
+        "description": "List all transcoding jobs with their current status and metadata."
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Job",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/jobs/{{job_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["jobs", "{{job_id}}"]
+        },
+        "description": "Delete job and remove all associated output files from disk."
+      },
+      "response": []
+    },
+    {
+      "name": "Error: Missing Field",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"chunkDuration\": 4\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/transcode",
+          "host": ["{{base_url}}"],
+          "path": ["transcode"]
+        },
+        "description": "Test error handling - missing required inputPath field."
+      },
+      "response": []
+    },
+    {
+      "name": "Error: File Not Found",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inputPath\": \"videos/nonexistent.mp4\",\n  \"chunkDuration\": 4\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/transcode",
+          "host": ["{{base_url}}"],
+          "path": ["transcode"]
+        },
+        "description": "Test error handling - file not found."
+      },
+      "response": []
+    },
+    {
+      "name": "Error: Job Not Found",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/jobs/invalid_job_id",
+          "host": ["{{base_url}}"],
+          "path": ["jobs", "invalid_job_id"]
+        },
+        "description": "Test error handling - job ID does not exist."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
