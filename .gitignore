@@ -1,0 +1,41 @@
+# Output directories
+outputs/*
+!outputs/.gitkeep
+chunks/*
+!chunks/.gitkeep
+tmp/*
+!tmp/.gitkeep
+
+# Videos (except sample)
+videos/*
+!videos/sample.mp4
+!videos/.gitkeep
+
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+*.test
+*.out
+go.work
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env

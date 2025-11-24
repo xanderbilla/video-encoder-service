@@ -1,0 +1,11 @@
+outputs/
+chunks/
+tmp/
+videos/*.mp4
+*.log
+.git
+.gitignore
+README.md
+Dockerfile.api
+Dockerfile.worker
+bin/
