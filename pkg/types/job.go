@@ -59,6 +59,22 @@ type AudioInfo struct {
 	Standard   string `json:"standard,omitempty"`
 }
 
+// VideoTrack represents a video quality track (video-only)
+type VideoTrack struct {
+	Quality    string `json:"quality"`
+	Resolution string `json:"resolution"`
+	Bandwidth  int    `json:"bandwidth"`
+	Playlist   string `json:"playlist"`
+}
+
+// AudioTrack represents an audio track
+type AudioTrack struct {
+	Language  string `json:"language"`
+	Bitrate   string `json:"bitrate"`
+	Playlist  string `json:"playlist"`
+	IsDefault bool   `json:"isDefault"`
+}
+
 type QualityOutput struct {
 	Quality    string `json:"quality"`
 	Playlist   string `json:"playlist"`

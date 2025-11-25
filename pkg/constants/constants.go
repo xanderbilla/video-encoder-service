@@ -2,8 +2,8 @@ package constants
 
 // File size limits (in MB)
 const (
-	MaxFileSizeMB = 1024 // 1GB
-	MaxJobSizeMB  = 1500 // 1.5GB per job
+	MaxFileSizeMB = 2048 // 2GB
+	MaxJobSizeMB  = 3000 // 3GB per job
 )
 
 // Resolution limits

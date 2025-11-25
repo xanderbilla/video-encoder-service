@@ -276,7 +276,14 @@ func (uc *TranscodeUseCase) stepEncoding(job *types.Job, state *types.JobState, 
 		return nil, nil, err
 	}
 
-	// Encode with resume support (skips completed qualities)
+	// Use separate A/V encoding if audio exists
+	if videoInfo.HasAudio {
+		log.Printf("Job %s: Using separate audio/video encoding", job.ID)
+		return uc.encodeSeparateAV(job, state, videoInfo)
+	}
+
+	// Fallback to combined encoding for video-only files
+	log.Printf("Job %s: Using combined encoding (no audio)", job.ID)
 	result, variants, err := uc.encodeWithResume(job, state, videoInfo)
 	
 	// Check if it's a partial success
@@ -400,6 +407,71 @@ func (uc *TranscodeUseCase) stepFinalization(job *types.Job, state *types.JobSta
 	uc.metricsService.EndJobMetrics(job.ID, finalStatus, qualitiesCount, chunksCount)
 
 	return nil
+}
+
+func (uc *TranscodeUseCase) encodeSeparateAV(job *types.Job, state *types.JobState, videoInfo *types.VideoInfo) (*types.EncodeResult, []types.QualityVariant, error) {
+	log.Printf("Job %s: Using separate audio/video encoding", job.ID)
+	
+	outputDir := filepath.Join(uc.diskService.GetOutputsDir(), job.ID, "hls")
+	
+	// Initialize separate A/V encoder
+	separateEncoder := NewSeparateAVEncoder()
+	
+	// Encode with separate audio and video
+	avResult, err := separateEncoder.EncodeSeparateAV(job.ID, job.InputPath, outputDir, videoInfo, job.ChunkDuration)
+	if err != nil {
+		return nil, nil, fmt.Errorf("separate A/V encoding failed: %w", err)
+	}
+	
+	// Convert to standard result format
+	result := &types.EncodeResult{
+		MasterPlaylist: avResult.MasterPlaylist,
+		QualityOutputs: []types.QualityOutputInfo{},
+	}
+	
+	// Add video tracks as quality outputs
+	for _, vt := range avResult.VideoTracks {
+		result.QualityOutputs = append(result.QualityOutputs, types.QualityOutputInfo{
+			Quality:    vt.Quality,
+			Playlist:   vt.Playlist,
+			ChunksDir:  filepath.Dir(vt.Playlist),
+			ChunkCount: 0, // Will be counted later
+		})
+	}
+	
+	// Build variants for metadata
+	var variants []types.QualityVariant
+	for _, vt := range avResult.VideoTracks {
+		variants = append(variants, types.QualityVariant{
+			Name:    vt.Quality,
+			Width:   parseWidth(vt.Resolution),
+			Height:  parseHeight(vt.Resolution),
+			Bitrate: fmt.Sprintf("%dk", vt.Bandwidth/1000),
+		})
+	}
+	
+	// Mark all qualities as completed
+	for _, v := range variants {
+		state.MarkQualityCompleted(v.Name)
+	}
+	
+	state.MarkStepCompleted(string(types.StepMasterPlaylist))
+	state.CurrentStep = string(types.StepCleanup)
+	uc.stateService.SaveState(state)
+	
+	return result, variants, nil
+}
+
+func parseWidth(resolution string) int {
+	var width, height int
+	fmt.Sscanf(resolution, "%dx%d", &width, &height)
+	return width
+}
+
+func parseHeight(resolution string) int {
+	var width, height int
+	fmt.Sscanf(resolution, "%dx%d", &width, &height)
+	return height
 }
 
 func (uc *TranscodeUseCase) encodeWithResume(job *types.Job, state *types.JobState, videoInfo *types.VideoInfo) (*types.EncodeResult, []types.QualityVariant, error) {

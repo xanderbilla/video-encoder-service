@@ -5,6 +5,9 @@ chunks/*
 !chunks/.gitkeep
 tmp/*
 !tmp/.gitkeep
+cache/*
+!cache/.gitkeep
+logs/metrics/*
 
 # Videos (except sample)
 videos/*
@@ -13,6 +16,7 @@ videos/*
 
 # Binaries
 bin/
+encoder-service
 *.exe
 *.dll
 *.so
