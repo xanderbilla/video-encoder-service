@@ -1,0 +1,15 @@
+{
+  "jobId": "job_1764044065527",
+  "startTime": "2025-11-25T04:14:25.528159631Z",
+  "endTime": "2025-11-25T04:14:35.934187386Z",
+  "duration": 10406027755,
+  "cpuUsagePercent": 14,
+  "memoryUsageMB": 1.4643936157226562,
+  "peakMemoryMB": 1.4643936157226562,
+  "diskUsedMB": 12.518331527709961,
+  "inputSizeMB": 1.3266668319702148,
+  "outputSizeMB": 12.518331527709961,
+  "qualitiesGenerated": 5,
+  "chunksGenerated": 15,
+  "status": "completed"
+}

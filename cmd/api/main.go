@@ -51,6 +51,9 @@ func main() {
 	// Initialize scheduler service
 	schedulerService := services.NewSchedulerService(cfg, jobQueue)
 
+	// Initialize WebSocket manager
+	wsManager := websocket.NewManager()
+
 	// Initialize use cases
 	transcodeUseCase := usecases.NewTranscodeUseCase(
 		jobService,
@@ -58,14 +61,12 @@ func main() {
 		stateService,
 		dlqService,
 		metricsService,
+		wsManager,
 		encoder,
 		validator,
 		dedupCache,
 		cfg.Worker.MaxRetries,
 	)
-
-	// Initialize WebSocket manager
-	wsManager := websocket.NewManager()
 
 	// Initialize handlers
 	jobHandler := handlers.NewJobHandler(

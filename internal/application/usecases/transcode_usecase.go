@@ -20,6 +20,7 @@ type TranscodeUseCase struct {
 	stateService   *services.StateService
 	dlqService     *services.DLQService
 	metricsService *services.MetricsService
+	wsManager      ports.WebSocketManager
 	encoder        ports.VideoEncoder
 	validator      ports.FileValidator
 	cache          ports.DeduplicationCache
@@ -32,6 +33,7 @@ func NewTranscodeUseCase(
 	stateService *services.StateService,
 	dlqService *services.DLQService,
 	metricsService *services.MetricsService,
+	wsManager ports.WebSocketManager,
 	encoder ports.VideoEncoder,
 	validator ports.FileValidator,
 	cache ports.DeduplicationCache,
@@ -43,10 +45,18 @@ func NewTranscodeUseCase(
 		stateService:   stateService,
 		dlqService:     dlqService,
 		metricsService: metricsService,
+		wsManager:      wsManager,
 		encoder:        encoder,
 		validator:      validator,
 		cache:          cache,
 		maxRetries:     maxRetries,
+	}
+}
+
+// broadcastProgress sends progress update via WebSocket
+func (uc *TranscodeUseCase) broadcastProgress(jobID, status string, progress int, currentStep string) {
+	if uc.wsManager != nil {
+		uc.wsManager.BroadcastProgressFromPorts(jobID, status, progress, currentStep, "", "")
 	}
 }
 
@@ -132,6 +142,7 @@ func contains(s, substr string) bool {
 func (uc *TranscodeUseCase) stepHashComputation(job *types.Job, state *types.JobState) error {
 	log.Printf("Job %s: Step - Hash computation", job.ID)
 	uc.jobService.UpdateProgress(job.ID, 5, "Computing file hash")
+	uc.broadcastProgress(job.ID, "RUNNING", 5, "Computing file hash")
 
 	hash, err := uc.cache.ComputeHash(job.InputPath)
 	if err != nil {
@@ -176,6 +187,7 @@ func (uc *TranscodeUseCase) stepDeduplication(job *types.Job, state *types.JobSt
 func (uc *TranscodeUseCase) stepAnalysis(job *types.Job, state *types.JobState) (*types.VideoInfo, error) {
 	log.Printf("Job %s: Step - Video analysis", job.ID)
 	uc.jobService.UpdateProgress(job.ID, 15, "Analyzing input video")
+	uc.broadcastProgress(job.ID, "RUNNING", 15, "Analyzing input video")
 
 	videoInfo, err := uc.encoder.GetVideoInfo(job.InputPath)
 	if err != nil {
@@ -192,6 +204,7 @@ func (uc *TranscodeUseCase) stepAnalysis(job *types.Job, state *types.JobState) 
 func (uc *TranscodeUseCase) stepEncoding(job *types.Job, state *types.JobState, videoInfo *types.VideoInfo) (*types.EncodeResult, []types.QualityVariant, error) {
 	log.Printf("Job %s: Step - Multi-quality encoding", job.ID)
 	uc.jobService.UpdateProgress(job.ID, 30, "Starting multi-quality encoding")
+	uc.broadcastProgress(job.ID, "RUNNING", 30, "Starting multi-quality encoding")
 
 	// Check disk limit
 	if err := uc.checkJobDiskLimit(job.ID); err != nil {
@@ -268,11 +281,13 @@ func (uc *TranscodeUseCase) stepFinalization(job *types.Job, state *types.JobSta
 	if isPartialSuccess {
 		uc.jobService.UpdateProgress(job.ID, 100, "Completed with partial success")
 		uc.jobService.UpdateStatus(job.ID, types.StatusPartialSuccess)
+		uc.broadcastProgress(job.ID, "PARTIAL_SUCCESS", 100, "Completed with partial success")
 		state.Status = "partial_success"
 		log.Printf("Job %s completed with partial success", job.ID)
 	} else {
 		uc.jobService.UpdateProgress(job.ID, 100, "Completed")
 		uc.jobService.UpdateStatus(job.ID, types.StatusCompleted)
+		uc.broadcastProgress(job.ID, "COMPLETED", 100, "Completed")
 		state.Status = "completed"
 		log.Printf("Job %s completed successfully", job.ID)
 	}

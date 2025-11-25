@@ -28,6 +28,18 @@ type ProgressUpdate struct {
 	Message     string    `json:"message,omitempty"`
 }
 
+// BroadcastProgressFromPorts broadcasts progress from ports interface
+func (m *Manager) BroadcastProgressFromPorts(jobID, status string, progress int, currentStep, eta, message string) {
+	m.BroadcastProgress(ProgressUpdate{
+		JobID:       jobID,
+		Status:      status,
+		Progress:    progress,
+		CurrentStep: currentStep,
+		ETA:         eta,
+		Message:     message,
+	})
+}
+
 // NewManager creates a new WebSocket manager
 func NewManager() *Manager {
 	return &Manager{

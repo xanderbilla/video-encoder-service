@@ -7,6 +7,7 @@ import (
 	"encoder-service/internal/application/usecases"
 	"encoder-service/internal/core/domain"
 	"encoder-service/internal/core/ports"
+	"encoder-service/internal/infrastructure/ffmpeg"
 	"encoder-service/internal/infrastructure/filesystem"
 	"encoder-service/internal/infrastructure/websocket"
 	"encoder-service/pkg/types"
@@ -490,13 +491,29 @@ func (h *JobHandler) GetDetailedVideoInfo(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Get detailed video info
-	// This would require adding the probe to the handler or use case
-	// For now, return a placeholder response
-	response := map[string]interface{}{
-		"inputPath": req.InputPath,
-		"message":   "Detailed video analysis endpoint - implementation pending",
+	// Get detailed video info using probe
+	probe := &ffmpeg.Probe{}
+	detailedInfo, err := probe.GetDetailedVideoInfo(req.InputPath)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, requestID, domain.CodeInvalidVideo, "Failed to analyze video", map[string]interface{}{"error": err.Error()})
+		return
 	}
 
-	utils.SendSuccessWithMessage(w, http.StatusOK, requestID, "Video info retrieved", response)
+	response := map[string]interface{}{
+		"inputPath":       req.InputPath,
+		"width":           detailedInfo.Width,
+		"height":          detailedInfo.Height,
+		"duration":        detailedInfo.Duration,
+		"videoCodec":      detailedInfo.VideoCodec,
+		"audioCodec":      detailedInfo.AudioCodec,
+		"bitrate":         detailedInfo.Bitrate,
+		"videoBitrate":    detailedInfo.VideoBitrate,
+		"frameRate":       detailedInfo.FrameRate,
+		"hasAudio":        detailedInfo.HasAudio,
+		"audioChannels":   detailedInfo.AudioChannels,
+		"audioSampleRate": detailedInfo.AudioSampleRate,
+		"fileSize":        detailedInfo.FileSize,
+	}
+
+	utils.SendSuccessWithMessage(w, http.StatusOK, requestID, "Video analysis completed", response)
 }
