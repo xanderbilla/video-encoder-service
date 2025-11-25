@@ -47,6 +47,7 @@ type DiskConfig struct {
 	ThresholdPercent int
 	HardLimitPercent int
 	CleanupInterval  int
+	MaxJobSizeMB     int
 }
 
 func Load() *Config {
@@ -80,6 +81,7 @@ func Load() *Config {
 			ThresholdPercent: getEnvInt("DISK_THRESHOLD_PERCENT", constants.DiskThresholdPercent),
 			HardLimitPercent: getEnvInt("DISK_HARD_LIMIT_PERCENT", constants.HardLimitPercent),
 			CleanupInterval:  getEnvInt("CLEANUP_INTERVAL", constants.CleanupInterval),
+			MaxJobSizeMB:     getEnvInt("MAX_JOB_SIZE_MB", constants.MaxJobSizeMB),
 		},
 	}
 }
