@@ -47,6 +47,16 @@ type OutputInfo struct {
 	OutputDir      string          `json:"outputDir"`
 	MasterPlaylist string          `json:"masterPlaylist,omitempty"`
 	Qualities      []QualityOutput `json:"qualities,omitempty"`
+	Thumbnails     []string        `json:"thumbnails,omitempty"`
+	SpriteSheet    string          `json:"spriteSheet,omitempty"`
+	PreviewClip    string          `json:"previewClip,omitempty"`
+	PreviewGIF     string          `json:"previewGif,omitempty"`
+	Audio          *AudioInfo      `json:"audio,omitempty"`
+}
+
+type AudioInfo struct {
+	Normalized bool   `json:"normalized"`
+	Standard   string `json:"standard,omitempty"`
 }
 
 type QualityOutput struct {

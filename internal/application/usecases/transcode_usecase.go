@@ -60,6 +60,71 @@ func (uc *TranscodeUseCase) broadcastProgress(jobID, status string, progress int
 	}
 }
 
+// PreviewData contains generated preview assets
+type PreviewData struct {
+	Thumbnails  []string
+	SpriteSheet string
+	PreviewClip string
+	PreviewGIF  string
+	Audio       *types.AudioInfo
+}
+
+// generatePreviews generates thumbnails, sprite sheet, preview clip and GIF
+func (uc *TranscodeUseCase) generatePreviews(jobID, inputPath string, videoInfo *types.VideoInfo) (*PreviewData, error) {
+	outputDir := filepath.Join(uc.diskService.GetOutputsDir(), jobID)
+	previewDir := filepath.Join(outputDir, "previews")
+	
+	if err := utils.EnsureDir(previewDir); err != nil {
+		return nil, fmt.Errorf("failed to create preview directory: %w", err)
+	}
+
+	previewGen := ffmpeg.NewPreviewGenerator(nil)
+	data := &PreviewData{}
+
+	// Generate thumbnails (10 thumbnails at intervals)
+	config := ffmpeg.PreviewConfig{
+		ThumbnailCount: 10,
+		ThumbnailWidth: 320,
+		GIFDuration:    3,
+		GIFStartTime:   videoInfo.Duration / 4, // Start at 25% of video
+	}
+
+	previewOutput, err := previewGen.GeneratePreviews(inputPath, outputDir, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate previews: %w", err)
+	}
+
+	data.Thumbnails = previewOutput.Thumbnails
+	data.PreviewGIF = previewOutput.GIF
+
+	// Generate sprite sheet
+	spriteSheetPath := filepath.Join(previewDir, "sprite.jpg")
+	if err := previewGen.GenerateSpriteSheet(inputPath, spriteSheetPath, config); err != nil {
+		log.Printf("Warning: Failed to generate sprite sheet: %v", err)
+	} else {
+		data.SpriteSheet = spriteSheetPath
+	}
+
+	// Generate preview clip (3 seconds from 25% of video)
+	previewClipPath := filepath.Join(previewDir, "preview.mp4")
+	startTime := videoInfo.Duration / 4
+	if err := previewGen.GeneratePreviewClip(inputPath, previewClipPath, startTime, 3.0); err != nil {
+		log.Printf("Warning: Failed to generate preview clip: %v", err)
+	} else {
+		data.PreviewClip = previewClipPath
+	}
+
+	// Audio normalization info (if audio exists)
+	if videoInfo.HasAudio {
+		data.Audio = &types.AudioInfo{
+			Normalized: false, // Set to true if normalization is applied
+			Standard:   "ITU BS.1770",
+		}
+	}
+
+	return data, nil
+}
+
 func (uc *TranscodeUseCase) Execute(ctx context.Context, job *types.Job) error {
 	var lastError error
 	var errorCode string
@@ -246,10 +311,27 @@ func (uc *TranscodeUseCase) stepEncoding(job *types.Job, state *types.JobState, 
 
 func (uc *TranscodeUseCase) stepFinalization(job *types.Job, state *types.JobState, result *types.EncodeResult, variants []types.QualityVariant, videoInfo *types.VideoInfo) error {
 	log.Printf("Job %s: Step - Finalization", job.ID)
+	uc.jobService.UpdateProgress(job.ID, 85, "Generating previews and thumbnails")
+
+	// Generate previews, thumbnails, and sprite sheet
+	previewData, err := uc.generatePreviews(job.ID, job.InputPath, videoInfo)
+	if err != nil {
+		log.Printf("Warning: Failed to generate previews for job %s: %v", job.ID, err)
+	}
+
 	uc.jobService.UpdateProgress(job.ID, 90, "Finalizing outputs")
 
 	inputMeta := buildInputMetadata(job.InputPath, videoInfo, variants)
 	outputInfo := buildOutputInfo(job.ID, result)
+
+	// Add preview data to output
+	if previewData != nil {
+		outputInfo.Thumbnails = previewData.Thumbnails
+		outputInfo.SpriteSheet = previewData.SpriteSheet
+		outputInfo.PreviewClip = previewData.PreviewClip
+		outputInfo.PreviewGIF = previewData.PreviewGIF
+		outputInfo.Audio = previewData.Audio
+	}
 
 	if err := uc.jobService.SetMetadata(job.ID, inputMeta, outputInfo); err != nil {
 		return err

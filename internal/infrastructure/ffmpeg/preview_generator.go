@@ -182,3 +182,75 @@ func (g *PreviewGenerator) GenerateSingleThumbnail(inputPath string, outputPath 
 
 	return nil
 }
+
+// GenerateSpriteSheet generates a sprite sheet of thumbnails
+func (g *PreviewGenerator) GenerateSpriteSheet(inputPath string, outputPath string, config PreviewConfig) error {
+	width := config.ThumbnailWidth
+	if width == 0 {
+		width = 160
+	}
+
+	// Get video duration
+	probe := NewProbe(g.config)
+	videoInfo, err := probe.GetVideoInfo(inputPath)
+	if err != nil {
+		return fmt.Errorf("failed to probe video: %w", err)
+	}
+
+	count := config.ThumbnailCount
+	if count == 0 {
+		count = 10
+	}
+
+	// Calculate interval
+	interval := videoInfo.Duration / float64(count+1)
+
+	// Generate sprite sheet with 5 columns
+	cols := 5
+	rows := (count + cols - 1) / cols
+
+	// FFmpeg filter for sprite sheet
+	filter := fmt.Sprintf("fps=1/%f,scale=%d:-1,tile=%dx%d", interval, width, cols, rows)
+
+	cmd := exec.Command("ffmpeg",
+		"-i", inputPath,
+		"-vf", filter,
+		"-frames:v", "1",
+		"-q:v", "2",
+		"-y",
+		outputPath,
+	)
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to generate sprite sheet: %w", err)
+	}
+
+	return nil
+}
+
+// GeneratePreviewClip generates a short preview video clip
+func (g *PreviewGenerator) GeneratePreviewClip(inputPath string, outputPath string, startTime, duration float64) error {
+	if duration == 0 {
+		duration = 3.0 // Default 3 seconds
+	}
+
+	cmd := exec.Command("ffmpeg",
+		"-ss", fmt.Sprintf("%.2f", startTime),
+		"-t", fmt.Sprintf("%.2f", duration),
+		"-i", inputPath,
+		"-c:v", "libx264",
+		"-preset", "fast",
+		"-crf", "23",
+		"-c:a", "aac",
+		"-b:a", "128k",
+		"-movflags", "+faststart",
+		"-y",
+		outputPath,
+	)
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to generate preview clip: %w", err)
+	}
+
+	return nil
+}
