@@ -348,6 +348,18 @@ func (uc *TranscodeUseCase) encodeWithResume(job *types.Job, state *types.JobSta
 			
 			// Mark as completed
 			state.MarkQualityCompleted(variant.Name)
+			
+			// Check per-job size limit after each quality
+			if err := uc.diskService.EnforceJobSizeLimit(job.ID); err != nil {
+				log.Printf("Job %s: Size limit exceeded after encoding %s: %v", job.ID, variant.Name, err)
+				
+				// Mark job as failed due to size limit
+				uc.jobService.UpdateStatus(job.ID, types.StatusFailed)
+				state.Status = "failed"
+				uc.stateService.SaveState(state)
+				
+				return nil, nil, fmt.Errorf("%s: %w", domain.CodeJobSizeExceeded, err)
+			}
 			uc.stateService.SaveState(state)
 		} else {
 			log.Printf("Failed to encode %s: %v", variant.Name, qualityResult.Error)
@@ -422,6 +434,11 @@ func (uc *TranscodeUseCase) process(ctx context.Context, job *types.Job) error {
 	stopHeartbeat := make(chan bool)
 	go uc.startHeartbeat(job.ID, stopHeartbeat)
 	defer func() { stopHeartbeat <- true }()
+
+	// Start periodic disk limit checking
+	stopDiskCheck := make(chan bool)
+	go uc.checkJobDiskLimitPeriodically(job.ID, stopDiskCheck)
+	defer func() { stopDiskCheck <- true }()
 
 	// Update status to running
 	if err := uc.jobService.UpdateStatus(job.ID, types.StatusRunning); err != nil {
@@ -554,23 +571,59 @@ func buildOutputInfo(jobID string, result *types.EncodeResult) *types.OutputInfo
 	}
 }
 
+func (uc *TranscodeUseCase) cleanupIntermediateFiles(jobID string) error {
+	// This will be implemented in disk service
+	return uc.diskService.CleanupIntermediateFiles(jobID)
+}
+
+// checkJobDiskLimit checks if job size exceeds the maximum allowed
 func (uc *TranscodeUseCase) checkJobDiskLimit(jobID string) error {
-	jobSize, err := uc.diskService.GetJobSize(jobID)
+	withinLimit, currentSizeMB, err := uc.diskService.CheckJobSizeLimit(jobID)
 	if err != nil {
-		return fmt.Errorf("failed to get job size: %w", err)
+		log.Printf("Job %s: Failed to check disk limit: %v", jobID, err)
+		return nil // Don't fail job if we can't check size
 	}
 
-	maxSizeMB := float64(1500) // MaxJobSizeMB from constants
-	jobSizeMB := float64(jobSize) / (1024 * 1024)
-
-	if jobSizeMB > maxSizeMB {
-		return fmt.Errorf("job size (%.2f MB) exceeds limit (%.2f MB)", jobSizeMB, maxSizeMB)
+	if !withinLimit {
+		log.Printf("Job %s: Size limit exceeded (%d MB), terminating job", jobID, currentSizeMB)
+		
+		// Mark job as failed
+		uc.jobService.UpdateStatus(jobID, types.StatusFailed)
+		
+		// Set error
+		jobErr := &types.JobError{
+			Code:    domain.CodeJobSizeExceeded,
+			Stage:   "encoding",
+			Message: fmt.Sprintf("Job size exceeded maximum allowed: %d MB", currentSizeMB),
+		}
+		uc.jobService.SetError(jobID, jobErr)
+		
+		// Delete job files
+		if err := uc.diskService.DeleteJobFiles(jobID); err != nil {
+			log.Printf("Job %s: Failed to delete files after size limit: %v", jobID, err)
+		}
+		
+		return fmt.Errorf("job size limit exceeded: %d MB", currentSizeMB)
 	}
 
 	return nil
 }
 
-func (uc *TranscodeUseCase) cleanupIntermediateFiles(jobID string) error {
-	// This will be implemented in disk service
-	return uc.diskService.CleanupIntermediateFiles(jobID)
+// checkJobDiskLimitPeriodically checks job size periodically during encoding
+func (uc *TranscodeUseCase) checkJobDiskLimitPeriodically(jobID string, stop chan bool) {
+	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := uc.checkJobDiskLimit(jobID); err != nil {
+				log.Printf("Job %s: Disk limit check failed: %v", jobID, err)
+				// The job will be terminated by checkJobDiskLimit
+				return
+			}
+		case <-stop:
+			return
+		}
+	}
 }
