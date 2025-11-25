@@ -202,6 +202,181 @@
         "description": "Test error handling - job ID does not exist."
       },
       "response": []
+    },
+    {
+      "name": "Resume Job",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/jobs/{{job_id}}/resume",
+          "host": ["{{base_url}}"],
+          "path": ["jobs", "{{job_id}}", "resume"]
+        },
+        "description": "Resume an interrupted or failed job from its last completed step."
+      },
+      "response": []
+    },
+    {
+      "name": "WebSocket Progress (Info)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "ws://localhost:8080/jobs/{{job_id}}/progress",
+          "protocol": "ws",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["jobs", "{{job_id}}", "progress"]
+        },
+        "description": "WebSocket endpoint for real-time job progress updates. Use a WebSocket client to connect."
+      },
+      "response": []
+    },
+    {
+      "name": "Create Batch Job",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.success && jsonData.data) {",
+              "        pm.environment.set(\"batch_id\", jsonData.data.batchId);",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"files\": [\n    \"videos/sample.mp4\",\n    \"videos/sample.mp4\"\n  ],\n  \"batchId\": \"batch_test_001\",\n  \"chunkDuration\": 4\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/batch",
+          "host": ["{{base_url}}"],
+          "path": ["batch"]
+        },
+        "description": "Create a batch job to process multiple videos in one request."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Batch Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/batch/{{batch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["batch", "{{batch_id}}"]
+        },
+        "description": "Get batch job status with statistics and individual job details."
+      },
+      "response": []
+    },
+    {
+      "name": "Schedule Job",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inputPath\": \"videos/sample.mp4\",\n  \"chunkDuration\": 4,\n  \"scheduledAt\": \"2025-11-26T02:00:00Z\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/schedule",
+          "host": ["{{base_url}}"],
+          "path": ["schedule"]
+        },
+        "description": "Schedule a job for future execution at a specific time."
+      },
+      "response": []
+    },
+    {
+      "name": "Analyze Video",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inputPath\": \"videos/sample.mp4\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/analyze",
+          "host": ["{{base_url}}"],
+          "path": ["analyze"]
+        },
+        "description": "Get detailed video metadata including codec, bitrate, frame rate, and audio information."
+      },
+      "response": []
+    },
+    {
+      "name": "Create Job with Webhook",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inputPath\": \"videos/sample.mp4\",\n  \"chunkDuration\": 4,\n  \"webhookUrl\": \"https://webhook.site/your-unique-url\",\n  \"webhookConfig\": {\n    \"url\": \"https://webhook.site/your-unique-url\",\n    \"secret\": \"my-secret-key\",\n    \"retries\": 3\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/transcode",
+          "host": ["{{base_url}}"],
+          "path": ["transcode"]
+        },
+        "description": "Create job with webhook notification on completion."
+      },
+      "response": []
+    },
+    {
+      "name": "Create Job with Preview",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inputPath\": \"videos/sample.mp4\",\n  \"chunkDuration\": 4,\n  \"previewConfig\": {\n    \"generate\": true,\n    \"thumbnailCount\": 10,\n    \"gifDuration\": 3,\n    \"gifStartTime\": 2\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/transcode",
+          "host": ["{{base_url}}"],
+          "path": ["transcode"]
+        },
+        "description": "Create job with thumbnail and GIF preview generation."
+      },
+      "response": []
     }
   ],
   "variable": [
@@ -212,6 +387,11 @@
     },
     {
       "key": "job_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "batch_id",
       "value": "",
       "type": "string"
     }
